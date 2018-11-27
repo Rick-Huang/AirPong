@@ -16,8 +16,11 @@ args = vars(ap.parse_args())
 # define the lower and upper boundaries of the "green"
 # ball in the HSV color space, then initialize the
 # list of tracked points
+
+# ACTUAL GREEN BOUNDS
 greenLower = (29, 86, 6)
 greenUpper = (64, 255, 255)
+
 pts = deque(maxlen=args["buffer"])
 
 # if a video path was not supplied, grab the reference
@@ -28,8 +31,6 @@ if not args.get("video", False):
 # otherwise, grab a reference to the video file
 else:
 	vs = cv2.VideoCapture(args["video"])
-
-file = open("y_coord.txt", "w")
 
 # allow the camera or video file to warm up
 time.sleep(2.0)
@@ -86,9 +87,15 @@ while True:
 
 	# update the points queue
 	pts.appendleft(center)
-	print(str(center))
-	file.write(str(center))
-	file.write("\n")
+
+	# write data to file, continuously creates file and writes to it 
+	file = open("green_coord.txt", "w")
+	if center is None:
+		print('-1,-1')
+		file.write('-1,-1')
+	else: 
+		print(str(center[0]) + ',' + str(center[1]))
+		file.write(str(center[0]) + ',' + str(center[1]))
 
     	# loop over the set of tracked points
 	for i in range(1, len(pts)):
