@@ -162,30 +162,39 @@ def main(argv):
     #get commandline arguments
     name =''
     duration = 5.0
-    
+    printOutput = False
+    length = 10
+    depth = 3
+    prev_rate_gyr = [[0]*depth for _ in range(length)]
+    shakeScore = 0
+
     try:
-        opts, args = getopt.getopt(argv, "hn:d:")
+        opts, args = getopt.getopt(argv, "hn:d:p")
     except getopt.GetoptError:
-      print ('berryIMU_log.py -n <outfile name> -d <duration>')
+      print ('berryIMU_log.py -n <outfile name> -d <duration> -p')
       sys.exit(2)
     for opt, arg in opts:
       if opt == '-h':
-         print ('berryIMU_log.py -n <outfile name> -d <duration>')
+         print ('berryIMU_log.py -n <outfile name> -d <duration> -p')
          sys.exit()
       elif opt in ("-n"):
          name = "-"+arg
       elif opt in ("-d"):
          duration = float(arg)
+      elif opt in ("-p"):
+         printOutput = True
     print ('Name is "', name)
     print ('Duration is %5.2f' % (duration))
     
     #create output files
     
+
     accl = open("accl"+name+".csv", "w")
-    kalman = open("kalman"+name+".csv", "w")
-    heading_file = open("heading"+name+".csv", "w")
-    complement = open("complement"+name+".csv", "w")
-    gyro = open("gyro"+name+".csv", "w")
+	#accl = open("accl"+name+".csv", "w")
+    #kalman = open("kalman"+name+".csv", "w")
+    #heading_file = open("heading"+name+".csv", "w")
+    #complement = open("complement"+name+".csv", "w")
+    #gyro = open("gyro"+name+".csv", "w")
 
     #setup GPIO
     GPIO.setmode(GPIO.BCM)
@@ -262,7 +271,7 @@ def main(argv):
         b = datetime.datetime.now() - a
         a = datetime.datetime.now()
         LP = b.microseconds/(1000000*1.0)
-        print ("Loop Time | %5.2f|" % ( LP )),
+        #print ("Loop Time | %5.2f|" % ( LP )),
     
     
     
@@ -433,40 +442,74 @@ def main(argv):
         tiltCompensatedHeading = 180 * math.atan2(magYcomp,magXcomp)/M_PI
     
         if tiltCompensatedHeading < 0:
-                    tiltCompensatedHeading += 360
+            tiltCompensatedHeading += 360
     
         ############################ END ##################################
-    
-    
-        if 1:			#Change to '0' to stop showing the angles from the accelerometer
+
+        #update gyro history
+        for x in range(length-1):
+            prev_rate_gyr[(length-1)-x][0] = prev_rate_gyr[(length-2)-x][0]
+            prev_rate_gyr[(length-1)-x][1] = prev_rate_gyr[(length-2)-x][1]
+            prev_rate_gyr[(length-1)-x][2] = prev_rate_gyr[(length-2)-x][2]
+
+        prev_rate_gyr[0][0] = rate_gyr_x
+        prev_rate_gyr[0][1] = rate_gyr_y
+        prev_rate_gyr[0][2] = rate_gyr_z
+
+        for i in range(length-1):
+            shakeScore += abs(prev_rate_gyr[i+1][2] - prev_rate_gyr[i][2])
+
+        # output values
+        accl.write(str(rate_gyr_x) + " , " + str(rate_gyr_y)+ " , " + str(rate_gyr_z) + " , " + str(shakeScore))
+        accl.write("\n")
+
+        # detect gestures
+        if shakeScore > 3000:
+            print("shake")
+        elif abs(rate_gyr_x) > 200:
+            print("flick")
+        else:
+            print("static")
+
+        if printOutput:
+            print ("# GRYX %5.2f \tGRYY %5.2f \tGRYZ %5.2f #  " % (rate_gyr_x, rate_gyr_y, rate_gyr_z))
+
+        shakeScore = 0
+        #print ("# pGRYX %5.2f \tpGRYY %5.2f \tpGRYZ %5.2f #  " % (prev_rate_gyr[0][0], prev_rate_gyr[0][1], prev_rate_gyr[0][2]))
+
+
+
+        if 0:			#Change to '0' to stop showing the magnitude from the accelerometer
             accl.write(str(AccXangle) + " , " + str(AccYangle))
             accl.write("\n")
             #print ("# ACCX Angle %5.2f ACCY Angle %5.2f #  " % (AccXangle, AccYangle)),    
-    
-        if 1:			#Change to '0' to stop  showing the angles from the gyro
-            gyro.write(str(gyroXangle) + " , " + str(gyroYangle) + " , " + str(gyroYangle))
-            gyro.write("\n")
-            #print ("\t# GRYX Angle %5.2f  GYRY Angle %5.2f  GYRZ Angle %5.2f # " % (gyroXangle,gyroYangle,gyroZangle)),
-    
-        if 1:			#Change to '0' to stop  showing the angles from the complementary filter
-            complement.write(str(CFangleX) + " , " + str(CFangleY))
-            complement.write("\n")
-            #print ("\t# CFangleX Angle %5.2f   CFangleY Angle %5.2f #" % (CFangleX,CFangleY)),
-            
-        if 1:			#Change to '0' to stop  showing the heading
-            heading_file.write(str(heading) + " , " + str(tiltCompensatedHeading))
-            heading_file.write("\n")
-            #print ("\t# HEADING %5.2f  tiltCompensatedHeading %5.2f #" % (heading,tiltCompensatedHeading)),
-            
-        if 1:			#Change to '0' to stop  showing the angles from the Kalman filter
-            kalman.write(str(kalmanX) + " , " + str(kalmanY))
-            kalman.write("\n")
+		#
+        #if 1:			#Change to '0' to stop  showing the angles from the gyro
+        #    gyro.write(str(gyroXangle) + " , " + str(gyroYangle) + " , " + str(gyroYangle))
+        #    gyro.write("\n")
+        #   #print ("\t# GRYX Angle %5.2f  GYRY Angle %5.2f  GYRZ Angle %5.2f # " % (gyroXangle,gyroYangle,gyroZangle)),
+		#
+        #if 1:			#Change to '0' to stop  showing the angles from the complementary filter
+        #    complement.write(str(CFangleX) + " , " + str(CFangleY))
+        #    complement.write("\n")
+        #    #print ("\t# CFangleX Angle %5.2f   CFangleY Angle %5.2f #" % (CFangleX,CFangleY)),
+        #    
+        #if 1:			#Change to '0' to stop  showing the heading
+        #    heading_file.write(str(heading) + " , " + str(tiltCompensatedHeading))
+        #    heading_file.write("\n")
+        #    #print ("\t# HEADING %5.2f  tiltCompensatedHeading %5.2f #" % (heading,tiltCompensatedHeading)),
+        #    
+        #if 1:			#Change to '0' to stop  showing the angles from the Kalman filter
+        #    kalman.write(str(kalmanX) + " , " + str(kalmanY))
+        #    kalman.write("\n")
             #print ("# kalmanX %5.2f   kalmanY %5.2f #" % (kalmanX,kalmanY)),
+		
     
         #print a new line
     
         #slow program down a bit, makes the output more readable
-        time.sleep(0.03)
+        # originally time.sleep(0.03)
+        time.sleep(0.1)
         
     print("done recording")
     GPIO.output(24,GPIO.LOW)
