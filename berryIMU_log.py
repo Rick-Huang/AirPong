@@ -28,8 +28,8 @@ import RPi.GPIO as GPIO
 import socket
 
 # SET UP UDP CONNECTION
-UDP_IP = '131.179.53.192'
-UDP_PORT = 9999
+UDP_IP = '131.179.25.231'
+UDP_PORT = 5000
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # If the IMU is upside down (Skull logo facing up), change this value to 1
@@ -484,23 +484,25 @@ def main(argv):
         
         accl.write("\n")
 
+        # detect angle
+        angle = str(gyroZangle)
+
         # detect gestures
+        output =""
         if shakeScore > 3000:
-            output = 'shake'
-            print("shake")
-            sock.sendto(output.encode(), (UDP_IP, UDP_PORT))
+            output = 'shake, ' + angle 
             shake_light = light_duration
             GPIO.output(24,GPIO.HIGH)
         elif abs(rate_gyr_x) > 200:
-            output = 'flick'
-            print("flick")
-            sock.sendto(output.encode(), (UDP_IP, UDP_PORT))
+            output = 'flick, ' + angle 
             flick_light = light_duration
             GPIO.output(25,GPIO.HIGH)
         else:
-            output = 'static'
-            print("static")
-            sock.sendto(output.encode(), (UDP_IP, UDP_PORT))
+            output = 'static, ' + angle 
+            
+
+        print(output)
+        sock.sendto(output.encode(), (UDP_IP, UDP_PORT))
 
         if shake_light > 0:
         	shake_light = shake_light - 1
@@ -511,10 +513,6 @@ def main(argv):
         	flick_light = flick_light - 1
        	else:
         	GPIO.output(25,GPIO.LOW)
-
-        print(str(gyroZangle))
-        angle = str(gyroZangle)
-        sock.sendto(angle.encode(), (UDP_IP, UDP_PORT))
 
         if printOutput:
             print ("# GRYX %5.2f \tGRYY %5.2f \tGRYZ %5.2f #  " % (rate_gyr_x, rate_gyr_y, rate_gyr_z))
