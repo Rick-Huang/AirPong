@@ -167,6 +167,10 @@ def main(argv):
     depth = 3
     prev_rate_gyr = [[0]*depth for _ in range(length)]
     shakeScore = 0
+    count=0
+    shake_light=0
+    flick_light=0
+    light_duration=5
 
     try:
         opts, args = getopt.getopt(argv, "hn:d:p")
@@ -201,7 +205,9 @@ def main(argv):
     GPIO.setwarnings(False)
     
     #assign pins
+    GPIO.setup(23,GPIO.OUT)
     GPIO.setup(24,GPIO.OUT)
+    GPIO.setup(25,GPIO.OUT)
     
     gyroXangle = 0.0
     gyroYangle = 0.0
@@ -244,7 +250,15 @@ def main(argv):
     cur = datetime.datetime.now()
     
     print("start recording")
+    
+    GPIO.output(23,GPIO.HIGH)
     GPIO.output(24,GPIO.HIGH)
+    GPIO.output(25,GPIO.HIGH)
+
+    time.sleep(.5)
+
+    GPIO.output(24,GPIO.LOW)
+    GPIO.output(25,GPIO.LOW)
     
     while (cur - start).total_seconds() < duration:
     
@@ -460,16 +474,33 @@ def main(argv):
             shakeScore += abs(prev_rate_gyr[i+1][2] - prev_rate_gyr[i][2])
 
         # output values
-        accl.write(str(rate_gyr_x) + " , " + str(rate_gyr_y)+ " , " + str(rate_gyr_z) + " , " + str(shakeScore))
+        accl.write(str(rate_gyr_x) + " , " + str(rate_gyr_y)+ " , " + str(rate_gyr_z) + " , " + str(shakeScore) + " , " + str(gyroXangle)  + " , " + str(gyroYangle) + " , " + str(gyroZangle))
+        
         accl.write("\n")
 
         # detect gestures
         if shakeScore > 3000:
             print("shake")
+            shake_light = light_duration
+            GPIO.output(24,GPIO.HIGH)
         elif abs(rate_gyr_x) > 200:
             print("flick")
+            flick_light = light_duration
+            GPIO.output(25,GPIO.HIGH)
         else:
             print("static")
+
+        if shake_light > 0:
+        	shake_light = shake_light - 1
+        else:
+        	GPIO.output(24,GPIO.LOW)
+        
+        if flick_light > 0:
+        	flick_light = flick_light - 1
+       	else:
+        	GPIO.output(25,GPIO.LOW)
+
+        print(str(gyroZangle))
 
         if printOutput:
             print ("# GRYX %5.2f \tGRYY %5.2f \tGRYZ %5.2f #  " % (rate_gyr_x, rate_gyr_y, rate_gyr_z))
@@ -512,7 +543,9 @@ def main(argv):
         time.sleep(0.1)
         
     print("done recording")
+    GPIO.output(23,GPIO.LOW)
     GPIO.output(24,GPIO.LOW)
+    GPIO.output(25,GPIO.LOW)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
