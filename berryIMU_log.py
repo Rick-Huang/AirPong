@@ -28,7 +28,10 @@ import RPi.GPIO as GPIO
 import socket
 
 # SET UP UDP CONNECTION
-UDP_IP = '131.179.25.231'
+# UDP_IP = '131.179.25.231'
+# UDP_IP=os.environ["UDP_IP"]
+# print os.environ["UDP_IP"]
+
 UDP_PORT = 5000
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -169,7 +172,7 @@ def main(argv):
     name =''
     duration = 5.0
     printOutput = False
-    length = 10
+    length = 50
     depth = 3
     prev_rate_gyr = [[0]*depth for _ in range(length)]
     shakeScore = 0
@@ -177,9 +180,10 @@ def main(argv):
     shake_light=0
     flick_light=0
     light_duration=5
+    UDP_IP='131.179.25.231'
 
     try:
-        opts, args = getopt.getopt(argv, "hn:d:p")
+        opts, args = getopt.getopt(argv, "hi:n:d:p")
     except getopt.GetoptError:
       print ('berryIMU_log.py -n <outfile name> -d <duration> -p')
       sys.exit(2)
@@ -187,6 +191,8 @@ def main(argv):
       if opt == '-h':
          print ('berryIMU_log.py -n <outfile name> -d <duration> -p')
          sys.exit()
+      elif opt in ("-i"):
+         UDP_IP = arg
       elif opt in ("-n"):
          name = "-"+arg
       elif opt in ("-d"):
@@ -341,39 +347,6 @@ def main(argv):
         ACCy = acc_medianTable2Y[ACC_MEDIANTABLESIZE/2];
         ACCz = acc_medianTable2Z[ACC_MEDIANTABLESIZE/2];
     
-    
-    
-        ######################################### 
-        #### Median filter for magnetometer ####
-        #########################################
-        # cycle the table
-        for x in range (MAG_MEDIANTABLESIZE-1,0,-1 ):
-            mag_medianTable1X[x] = mag_medianTable1X[x-1]
-            mag_medianTable1Y[x] = mag_medianTable1Y[x-1]
-            mag_medianTable1Z[x] = mag_medianTable1Z[x-1]
-    
-        # Insert the latest values    
-        mag_medianTable1X[0] = MAGx
-        mag_medianTable1Y[0] = MAGy
-        mag_medianTable1Z[0] = MAGz    
-    
-        # Copy the tables
-        mag_medianTable2X = mag_medianTable1X[:]
-        mag_medianTable2Y = mag_medianTable1Y[:]
-        mag_medianTable2Z = mag_medianTable1Z[:]
-    
-        # Sort table 2
-        mag_medianTable2X.sort()
-        mag_medianTable2Y.sort()
-        mag_medianTable2Z.sort()
-    
-        # The middle value is the value we are interested in
-        MAGx = mag_medianTable2X[MAG_MEDIANTABLESIZE/2];
-        MAGy = mag_medianTable2Y[MAG_MEDIANTABLESIZE/2];
-        MAGz = mag_medianTable2Z[MAG_MEDIANTABLESIZE/2];
-    
-    
-    
         #Convert Gyro raw to degrees per second
         rate_gyr_x =  GYRx * G_GAIN
         rate_gyr_y =  GYRy * G_GAIN
@@ -405,65 +378,6 @@ def main(argv):
         else:
             AccYangle += 90.0
     
-    
-    
-        #Complementary filter used to combine the accelerometer and gyro values.
-        CFangleX=AA*(CFangleX+rate_gyr_x*LP) +(1 - AA) * AccXangle
-        CFangleY=AA*(CFangleY+rate_gyr_y*LP) +(1 - AA) * AccYangle
-    
-        #Kalman filter used to combine the accelerometer and gyro values.
-        kalmanY = kalmanFilterY(AccYangle, rate_gyr_y,LP)
-        kalmanX = kalmanFilterX(AccXangle, rate_gyr_x,LP)
-    
-        if IMU_UPSIDE_DOWN:
-            MAGy = -MAGy      #If IMU is upside down, this is needed to get correct heading.
-        #Calculate heading
-        heading = 180 * math.atan2(MAGy,MAGx)/M_PI
-    
-        #Only have our heading between 0 and 360
-        if heading < 0:
-            heading += 360
-    
-    
-    
-        ####################################################################
-        ###################Tilt compensated heading#########################
-        ####################################################################
-        #Normalize accelerometer raw values.
-        if not IMU_UPSIDE_DOWN:        
-            #Use these two lines when the IMU is up the right way. Skull logo is facing down
-            accXnorm = ACCx/math.sqrt(ACCx * ACCx + ACCy * ACCy + ACCz * ACCz)
-            accYnorm = ACCy/math.sqrt(ACCx * ACCx + ACCy * ACCy + ACCz * ACCz)
-        else:
-            #Us these four lines when the IMU is upside down. Skull logo is facing up
-            accXnorm = -ACCx/math.sqrt(ACCx * ACCx + ACCy * ACCy + ACCz * ACCz)
-            accYnorm = ACCy/math.sqrt(ACCx * ACCx + ACCy * ACCy + ACCz * ACCz)
-    
-        #Calculate pitch and roll
-    
-        pitch = math.asin(accXnorm)
-        roll = -math.asin(accYnorm/math.cos(pitch))
-    
-    
-        #Calculate the new tilt compensated values
-        magXcomp = MAGx*math.cos(pitch)+MAGz*math.sin(pitch)
-     
-        #The compass and accelerometer are orientated differently on the LSM9DS0 and LSM9DS1 and the Z axis on the compass
-        #is also reversed. This needs to be taken into consideration when performing the calculations
-        if(IMU.LSM9DS0):
-            magYcomp = MAGx*math.sin(roll)*math.sin(pitch)+MAGy*math.cos(roll)-MAGz*math.sin(roll)*math.cos(pitch)   #LSM9DS0
-        else:
-            magYcomp = MAGx*math.sin(roll)*math.sin(pitch)+MAGy*math.cos(roll)+MAGz*math.sin(roll)*math.cos(pitch)   #LSM9DS1
-    
-    
-    
-    
-    	#Calculate tilt compensated heading
-        tiltCompensatedHeading = 180 * math.atan2(magYcomp,magXcomp)/M_PI
-    
-        if tiltCompensatedHeading < 0:
-            tiltCompensatedHeading += 360
-    
         ############################ END ##################################
 
         #update gyro history
@@ -479,27 +393,35 @@ def main(argv):
         for i in range(length-1):
             shakeScore += abs(prev_rate_gyr[i+1][2] - prev_rate_gyr[i][2])
 
-        # output values
-        accl.write(str(rate_gyr_x) + " , " + str(rate_gyr_y)+ " , " + str(rate_gyr_z) + " , " + str(shakeScore) + " , " + str(gyroXangle)  + " , " + str(gyroYangle) + " , " + str(gyroZangle))
-        
-        accl.write("\n")
+        # detect angle (abs value because should always opperate in the upper half - paddle is upright)
+        angle = str(round(abs(AccXangle)-90))
 
-        # detect angle
-        angle = str(gyroZangle)
+        #calculate time runnng
+        timeElapsed = str((cur - start).total_seconds())
+
+        # Matlab plot can't use string in array of numbers so need numbered status
+        outNumber = 0
 
         # detect gestures
         output =""
-        if shakeScore > 3000:
-            output = 'shake, ' + angle 
+        if shakeScore > 6000:
+            output = 'shake;' + angle
+            outNumber = 2
             shake_light = light_duration
             GPIO.output(24,GPIO.HIGH)
-        elif abs(rate_gyr_x) > 200:
-            output = 'flick, ' + angle 
+        elif abs(rate_gyr_y) > 800:
+            output = 'flick;' + angle + ';' + str(abs(rate_gyr_y))
+            outNumber = 1
             flick_light = light_duration
             GPIO.output(25,GPIO.HIGH)
         else:
-            output = 'static, ' + angle 
-            
+            output = 'static;' + angle + ";" + timeElapsed + " sec"
+            outNumber = 0
+        
+        # output values
+        accl.write(timeElapsed + " , " + str(rate_gyr_x) + " , " + str(rate_gyr_y) + " , " + str(rate_gyr_z) + " , " + str(shakeScore) + " , " + str(gyroXangle)  + " , " + str(gyroYangle) + " , " + str(gyroZangle) + " , " + str(AccXangle) + " , " + str(AccYangle) + " , " + str(outNumber))
+        
+        accl.write("\n") 
 
         print(output)
         sock.sendto(output.encode(), (UDP_IP, UDP_PORT))
@@ -515,7 +437,7 @@ def main(argv):
         	GPIO.output(25,GPIO.LOW)
 
         if printOutput:
-            print ("# GRYX %5.2f \tGRYY %5.2f \tGRYZ %5.2f #  " % (rate_gyr_x, rate_gyr_y, rate_gyr_z))
+            print (str((cur - start).total_seconds()) + "\n" + "# GRYX %5.2f \tGRYY %5.2f \tGRYZ %5.2f \tAccXangle %5.2f \tAccYangle %5.2f #  " % (rate_gyr_x, rate_gyr_y, rate_gyr_z, AccXangle, AccYangle))
 
         shakeScore = 0
         #print ("# pGRYX %5.2f \tpGRYY %5.2f \tpGRYZ %5.2f #  " % (prev_rate_gyr[0][0], prev_rate_gyr[0][1], prev_rate_gyr[0][2]))
@@ -552,7 +474,7 @@ def main(argv):
     
         #slow program down a bit, makes the output more readable
         # originally time.sleep(0.03)
-        time.sleep(0.1)
+        time.sleep(0.01)
         
     print("done recording")
     GPIO.output(23,GPIO.LOW)
