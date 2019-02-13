@@ -3,7 +3,7 @@ close all
 
 %% Flick 1
 %"flick","shake","baseline",
-tag = [  "shake01"];
+tag = [  "shake01-x-paddle1" "shake01-z-paddle1"];
 for i=1:length(tag)
     filename = [strcat("accl-",tag(i),".csv"),...
                 ];
